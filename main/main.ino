@@ -27,13 +27,13 @@ GyroMnager gyro{ { Wire } };
 
 TwoWheelDriveSystem tw{
     RoboMasterSpeedFB{
-        Udon::RoboMasterC610{ motorBus, 1, Udon::Direction::Forward },
+        Udon::RoboMasterC610{ motorBus, 1, Udon::Direction::Backward },
         Udon::SpeedPidController{ 0.032, 0.2, 0.0009, loopCtrl.cycleUs(), 20000 } },
     RoboMasterSpeedFB{
-        Udon::RoboMasterC610{ motorBus, 2, Udon::Direction::Backward },
+        Udon::RoboMasterC610{ motorBus, 2, Udon::Direction::Forward },
         Udon::SpeedPidController{ 0.032, 0.2, 0.0009, loopCtrl.cycleUs(), 20000 } },
     RelativeGyro{ gyro },
-    Udon::PidController{ 35, 0.2, 7.8, loopCtrl.cycleUs() },
+    Udon::PidController{ 70, 0.2, 7.8, loopCtrl.cycleUs() },
 };
 
 
@@ -43,17 +43,8 @@ RoboMasterSpeedFB collector{
 };
 
 
-Udon::MotorBy<Udon::CanWriter> lift{ Udon::CanWriter<Udon::Message::Motor>{ comBus, 0x001 } };
-
-
-Selecter selecter{
-    MotorFB{
-        Udon::MotorBy<Udon::CanWriter>{ { comBus, 0x002 }, Udon::Direction::Forward },
-        Udon::EncoderBy<Udon::CanReader>{ { comBus, 0x003 }, Udon::Direction::Forward },
-        Udon::PidController{ 0.07, 0.0001, 0.001, loopCtrl.cycleUs(), 10 },
-    },
-    Udon::CanReader<Udon::Message::Switch>{ comBus, 0x004 },
-};
+Udon::MotorBy<Udon::CanWriter> lift{ Udon::CanWriter<Udon::Message::Motor>{ comBus, 0x001 }, Udon::Direction::Backward };
+Udon::MotorBy<Udon::CanWriter> selector{ Udon::CanWriter<Udon::Message::Motor>{ comBus, 0x002 }, Udon::Direction::Backward };
 
 
 bool isResetting;
@@ -61,8 +52,10 @@ bool isResetting;
 
 void setup()
 {
+    delay(200);
     Serial.begin(115200);
-    pad.begin();
+    pad.begin(Udon::DecodeDipSwitch({ 9, 10, 11, 12 }));
+    delay(200);
     comBus.begin();
     motorBus.begin();
     led.begin();
@@ -81,29 +74,28 @@ void loop()
 
     if (pad.isOperable() && (bool)comBus && (bool)motorBus)
     {
-        if (isResetting)
-        {
-            isResetting = selecter.takeOffset(Udon::Direction::Backward);
-        }
-        else
-        {
-            tw.moveA(pad.getMoveInfo());
-            collector.move(pad.getCircle().toggle ? 15000 : 0);
-            lift.move(pad.getSquare().toggle ? 10 : 0);
-            selecter.move(pad.getTriangle().toggle);
-        }
+        auto info = pad.getMoveInfo() / 1.5;
+        info.turn /= 2;
+        tw.moveA(info, 20000);
+
+        int collectPower = pad.getR2().press ? 5000 : pad.getL2().press ? -5000
+                                                                        : 0;
+        collector.move(collectPower);
+
+        int liftPower = pad.getUp().press ? 130 : pad.getDown().press ? -130
+                                                                      : 0;
+        lift.move(liftPower);
+
+        int selectPower = pad.getL1().press ? 20 : pad.getR1().press ? -20
+                                                                     : 0;
+        selector.move(selectPower);
     }
     else
     {
         tw.stop();
         collector.stop();
         lift.stop();
-        selecter.stop();
-    }
-
-    if (pad.getTouch().click)
-    {
-        isResetting = true;
+        selector.stop();
     }
 
     if ((bool)comBus && (bool)motorBus && (bool)pad)
@@ -114,6 +106,16 @@ void loop()
     {
         led.flush(100);
     }
+
+
+    Serial.println("\n\n");
+    Serial.println("tw-------------------------------");
+    tw.show();
+    Serial.println();
+
+    Serial.println("pad------------------------------");
+    Udon::Showln(pad.getMessage());
+    Serial.println();
 
     loopCtrl.update();
 }

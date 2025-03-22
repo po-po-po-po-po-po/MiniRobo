@@ -84,10 +84,10 @@ inline double MotorFB::getAngle()
 
 inline void MotorFB::show()
 {
-    Serial.println("encoder");
+    Serial.print("encoder : ");
     enc.show();
     Serial.println();
-    Serial.println("motor power");
+    Serial.print("motor power : ");
     driver.show();
     Serial.println();
 }

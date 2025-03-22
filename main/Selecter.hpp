@@ -8,7 +8,7 @@
 struct Selecter
 {
     Selecter(MotorFB&& Motor_, Udon::CanReader<Udon::Message::Switch>&& SW_)
-        : motor(std::move(motor))
+        : motor(std::move(Motor_))
         , sw(std::move(SW_))
     {
     }
@@ -19,13 +19,15 @@ struct Selecter
 
     bool takeOffset(Udon::Direction dir, double power = 10);
 
+    void show();
+
 private:
     MotorFB                                motor;
     Udon::CanReader<Udon::Message::Switch> sw;
 };
 
 
-void Selecter::move(bool isOpen)
+inline void Selecter::move(bool isOpen)
 {
     constexpr double openAngle  = 10;
     constexpr double closeAngle = 60;
@@ -34,13 +36,13 @@ void Selecter::move(bool isOpen)
 }
 
 
-void Selecter::stop()
+inline void Selecter::stop()
 {
     motor.stop();
 }
 
 
-bool Selecter::takeOffset(Udon::Direction dir, double power)
+inline bool Selecter::takeOffset(Udon::Direction dir, double power)
 {
     bool isContinue = !sw.getMessage().value().press;
     if (isContinue)
@@ -53,4 +55,12 @@ bool Selecter::takeOffset(Udon::Direction dir, double power)
         motor.reset();
     }
     return isContinue;
+}
+
+
+inline void Selecter::show()
+{
+    motor.show();
+    Udon::Printf("sw : %d", sw.getMessage().value().press);
+    Serial.println();
 }

@@ -1,7 +1,7 @@
 #include <Udon.hpp>
 
 
-Udon::LoopCycleController loopCtrl{ 1000 };
+Udon::LoopCycleController loopCtrl{ 2000 };
 Udon::Led                 led{ LED_BUILTIN };
 Udon::PicoWDT             wdt;
 
@@ -14,13 +14,13 @@ using Reader = Udon::CanReader<Udon::Message::Motor>;
 std::array<Reader, motorNum> readers{ Reader{ comBus, 0x001 },
                                       Reader{ comBus, 0x002 } };
 
-std::array<Udon::Motor3, motorNum> drivers{ Udon::Motor3{ 0, 2, 1 },
-                                            Udon::Motor3{ 3, 5, 4 } };
+std::array<Udon::Motor3, motorNum> drivers{ Udon::Motor3{ 8, 10, 9 },
+                                            Udon::Motor3{ 15, 21, 14 } };
 
-Udon::EncoderPico                       enc{0, 1};
+Udon::EncoderPico                       enc{ 0, 1 };
 Udon::CanWriter<Udon::Message::Encoder> encWriter{ comBus, 0x003 };
 
-constexpr size_t                       swPin = 0;
+constexpr size_t                       swPin = 28;
 Udon::CanWriter<Udon::Message::Switch> swWriter{ comBus, 0x004 };
 
 
@@ -30,7 +30,14 @@ void setup()
     led.begin();
     comBus.begin();
     pinMode(swPin, INPUT_PULLUP);
-    enc.begin();
+    delay(10);
+    bool is = enc.begin();
+    // if (is) {
+    //     Serial.println("encoder faild");
+    // delay(10000);
+    // }
+    // pinMode(0, INPUT_PULLUP);
+    // pinMode(1, INPUT_PULLUP);
 
     for (auto& driver : drivers)
     {
@@ -48,9 +55,18 @@ void loop()
 
     if ((bool)comBus)
     {
-        for (size_t i; i < motorNum; i++)
+        for (size_t i = 0; i < motorNum; i++)
         {
-            drivers[i].move(readers[i].getMessage().value().power);
+            auto power = 0;
+            if (auto mes = readers[i].getMessage())
+            {
+                drivers[i].move(power = mes.value().power);
+            }
+            else
+            {
+                drivers[i].stop();
+            }
+            Udon::Printf("%d \t", power);
         }
         led.flush();
     }
@@ -59,12 +75,21 @@ void loop()
         for (auto& driver : drivers)
         {
             driver.stop();
+            Udon::Printf("receive error \t");
         }
         led.flush(100);
     }
+    Serial.println();
 
-    encWriter.setMessage({ enc.read() });
-    swWriter.setMessage({ !digitalRead(swPin) });
+    auto count = enc.read();
+    encWriter.setMessage({ count });
+    Udon::Printf("encoder %d \n", count);
+    // enc.show();
+    // Udon::Printf("pin0: %d   pin1: %d", digitalRead(0), digitalRead(1));
+
+    auto sw = !digitalRead(swPin);
+    swWriter.setMessage({ sw });
+    Udon::Printf("sw %d \n", sw);
 
     loopCtrl.update();
 }
